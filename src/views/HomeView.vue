@@ -9,12 +9,18 @@
 
         <!-- Login Form -->
         <form v-on:submit.prevent="login">
-          <input type="text" id="login" class="fadeIn second" name="login" placeholder="Usuario" v-model="usuario"
+          <input type="text" id="login" class="fadeIn second" name="login" placeholder="Username" v-model="username"
             maxlength="12" required>
-          <input type="password" id="contrasenia" class="fadeIn third" name="login" placeholder="Password"
-            v-model="contrasenia" maxlength="12" required>
-          <input type="submit" class="fadeIn fourth" value="Iniciar sesión">
+          <input type="password" id="password" class="fadeIn third" name="login" placeholder="Password"
+            v-model="password" maxlength="12" required>
+          <input type="submit" class="fadeIn fourth" value="Sign in" :disabled="loading">
         </form>
+
+        <p class="divider fadeIn fourth">or</p>
+
+        <button type="button" class="google-btn fadeIn fourth" :disabled="loadingGoogle" @click="loginWithGoogle">
+          {{ loadingGoogle ? 'Connecting...' : 'Continue with Google' }}
+        </button>
       </div>
     </div>
   </div>
@@ -22,6 +28,9 @@
 
 <script>
 import axios from 'axios';
+import { requestGoogleAccessToken } from '@/services/googleAuth';
+import { API_BASE_URL, GOOGLE_CLIENT_ID } from '@/config/const';
+
 export default {
   name: 'HomeView',
   components: {
@@ -29,25 +38,39 @@ export default {
   },
   data: function () {
     return {
-      usuario: "",
-      contrasenia: "",
-      error: false
+      username: "",
+      password: "",
+      error: false,
+      loading: false,
+      loadingGoogle: false
     }
   },
   methods: {
     async login() {
       this.loading = true;
-      let json = {
-        "usuario": this.usuario,
-        "contrasenia": this.contrasenia
-      };
-      const response = await axios.post('http://localhost:8090/api/v1/login', json);
-      if (response.data.error) {
-        // Si hay un error, muestra un mensaje de alerta con el mensaje de error recibido del backend
+      try {
+        const json = {
+          usuario: this.username,
+          contrasenia: this.password
+        };
+        const response = await axios.post(`${API_BASE_URL}/api/v1/login`, json);
         alert(response.data.mensaje);
-      } else {
-        // Si no hay error, muestra un mensaje de alerta indicando que el usuario fue encontrado
+      } catch (err) {
+        alert(err.response?.data?.mensaje || 'Sign-in failed');
+      } finally {
+        this.loading = false;
+      }
+    },
+    async loginWithGoogle() {
+      this.loadingGoogle = true;
+      try {
+        const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
+        const response = await axios.post(`${API_BASE_URL}/api/v1/login/google`, { token });
         alert(response.data.mensaje);
+      } catch (err) {
+        alert(err.response?.data?.mensaje || err.message || 'Sign-in failed with Google.');
+      } finally {
+        this.loadingGoogle = false;
       }
     }
   }
@@ -56,12 +79,13 @@ export default {
 
 <style>
 html {
-  background-color: #56baed;
+  background-color: #fff;
 }
 
 body {
   font-family: "Poppins", sans-serif;
   height: 100vh;
+  background-color: #fff;
 }
 
 a {
@@ -99,14 +123,18 @@ h2 {
   -webkit-border-radius: 10px 10px 10px 10px;
   border-radius: 10px 10px 10px 10px;
   background: #fff;
-  padding: 30px;
   width: 90%;
   max-width: 450px;
   position: relative;
-  padding: 0px;
+  padding: 30px 24px;
   -webkit-box-shadow: 0 30px 60px 0 rgba(0, 0, 0, 0.3);
   box-shadow: 0 30px 60px 0 rgba(0, 0, 0, 0.3);
   text-align: center;
+  box-sizing: border-box;
+}
+
+#formContent form {
+  width: 100%;
 }
 
 #formFooter {
@@ -141,17 +169,19 @@ input[type=reset] {
   background-color: #56baed;
   border: none;
   color: white;
-  padding: 15px 80px;
+  padding: 15px 32px;
   text-align: center;
   text-decoration: none;
-  display: inline-block;
+  display: block;
   text-transform: uppercase;
   font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
   -webkit-box-shadow: 0 10px 30px 0 rgba(95, 186, 233, 0.4);
   box-shadow: 0 10px 30px 0 rgba(95, 186, 233, 0.4);
   -webkit-border-radius: 5px 5px 5px 5px;
   border-radius: 5px 5px 5px 5px;
-  margin: 5px 20px 40px 20px;
+  margin: 5px 0 20px;
   -webkit-transition: all 0.3s ease-in-out;
   -moz-transition: all 0.3s ease-in-out;
   -ms-transition: all 0.3s ease-in-out;
@@ -182,10 +212,11 @@ input[type=text] {
   padding: 15px 32px;
   text-align: center;
   text-decoration: none;
-  display: inline-block;
+  display: block;
   font-size: 16px;
-  margin: 5px;
-  width: 85%;
+  margin: 5px 0;
+  width: 100%;
+  box-sizing: border-box;
   border: 2px solid #f6f6f6;
   -webkit-transition: all 0.5s ease-in-out;
   -moz-transition: all 0.5s ease-in-out;
@@ -344,10 +375,11 @@ input[type=password] {
   padding: 15px 32px;
   text-align: center;
   text-decoration: none;
-  display: inline-block;
+  display: block;
   font-size: 16px;
-  margin: 5px;
-  width: 85%;
+  margin: 5px 0;
+  width: 100%;
+  box-sizing: border-box;
   border: 2px solid #f6f6f6;
   -webkit-transition: all 0.5s ease-in-out;
   -moz-transition: all 0.5s ease-in-out;
@@ -365,6 +397,39 @@ input[type=password]:focus {
 
 input[type=password]::placeholder {
   color: #cccccc;
+}
+
+.divider {
+  color: #cccccc;
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+
+.google-btn {
+  background-color: #fff;
+  border: 2px solid #dce8f1;
+  color: #0d0d0d;
+  padding: 12px 24px;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-border-radius: 5px;
+  border-radius: 5px;
+  margin: 0 0 10px;
+  -webkit-transition: all 0.3s ease-in-out;
+  transition: all 0.3s ease-in-out;
+}
+
+.google-btn:hover:not(:disabled) {
+  border-color: #5fbae9;
+  background-color: #f6f6f6;
+}
+
+.google-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 /* OTHERS */
